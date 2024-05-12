@@ -21,6 +21,7 @@ import pickle
 import pandas as pd
 #import numpy as np
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
 # scikit-learn 버전 맞추기
 try:
@@ -30,6 +31,15 @@ except Exception as e:
     raise HTTPException(status_code=500, detail=f"Failed to load the model: {str(e)}")
 
 app = FastAPI(title="ML API")
+
+#CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 모든 원본을 허용하려면 "*" 사용
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],  # 허용할 HTTP 메서드 목록
+    allow_headers=["*"],  # 모든 헤더 허용
+)
 
 # 입력 데이터 유효성 검사
 def validate_input_data(x):
