@@ -16,26 +16,33 @@ Original file is located at
 # !pip install uvicorn==0.29.0 fastapi==0.111.0 pandas==2.2.1 numpy==1.26.4 pydantic==2.7.1 scikit-learn==1.2.2
 
 
-# fast api 라이브러리
-from fastapi import FastAPI # 비동기 처리가 가능한 파이썬 웹서버 라이브라리
-
-# 머신러닝 모델 관리용 라이브러리
-import pickle # 특징: 데이터 타입을 유지하면서 데이터를 저장하고 불러올 수 있음, 대용량 데이터는 피클로 저장해서 불러와야 시간이 확 단축됨! 기계가 알아듣는 바이너리로 저장되기 때문
-
-# 데이터프레임 및 수 처리 라이브러리
-import pandas as pd # 데이터 행과 열 처리
-import numpy as np # 데이터 수를 관리
-
-# 인터페이스 데이터 관리를 위한 라이브러리
-from pydantic import BaseModel # pydantic은 인터페이스 데이터를 쉽게 정의할 수 있는 라이브러리
+from fastapi import FastAPI, HTTPException  # 비동기 처리가 가능한 파이썬 웹서버 라이브라리
+import pickle
+import pandas as pd
+#import numpy as np
+from pydantic import BaseModel
 
 # scikit-learn 버전 맞추기
-with open("./ml.dump", "rb") as fr:
-    loadedModel = pickle.load(fr)
+try:
+    with open("./ml.dump", "rb") as fr:
+        loadedModel = pickle.load(fr)
+except Exception as e:
+    raise HTTPException(status_code=500, detail=f"Failed to load the model: {str(e)}")
 
 app = FastAPI(title="ML API")
 
+# 입력 데이터 유효성 검사
+def validate_input_data(x):
+    if x.input_road_rating not in [0, 4, 5]:
+        raise HTTPException(status_code=400, detail="입력한 road_rating 값이 잘못되었습니다. 0, 4, 5 중에 하나를 입력해주세요.")
+    if x.input_maximum_speed_limit not in [30, 40, 50, 60, 70, 80]:
+        raise HTTPException(status_code=400, detail="입력한 maximum_speed_limit 값이 잘못되었습니다. 30, 40, 50, 60, 70, 80 중에 하나를 입력해주세요.")
+    if x.input_weight_restricted not in [0, 1, 5, 6]:
+        raise HTTPException(status_code=400, detail="입력한 weight_restricted 값이 잘못되었습니다. 0, 1, 5, 6 중에 하나를 입력해주세요.")
+
+
 """# 3. 인터페이스 정의"""
+
 
 # features = ["input_road_rating", "input_maximum_speed_limit", "input_weight_restricted"]
 # label = ["target"] (평균속도)
@@ -43,10 +50,6 @@ app = FastAPI(title="ML API")
 # 1. input_road_rating : 0(103) / 4(106) / 5(107)
 # 2. input_maximum_speed_limit : 30 / 40 / 50 / 60 / 70 / 80
 # 3. input_weight_restricted : 0(제한x) / 1(32400) / 5(43200) / 6(50000)
-
-
-# inputData = pd.DataFrame( [[input_road_rating, input_maximum_speed_limit, input_weight_restricted]] )
-# inputData
 
 class InDataset(BaseModel):
     input_road_rating: int
@@ -61,8 +64,13 @@ async def root():
 
 @app.post("/predict", status_code=200)
 async def predict_ml(x: InDataset): # 들어오는 데이터 타입을 InDataSet으로
-    print(x)
-    testDf = pd.DataFrame( [[x.input_road_rating, x.input_maximum_speed_limit, x.input_weight_restricted]] )
-    predictValue = loadedModel.predict(testDf)[0]
-    interfaceResult = {"result": predictValue }
-    return interfaceResult
+    try:
+        validate_input_data(x)  # 입력 데이터 유효성 검사
+        testDf = pd.DataFrame([[x.input_road_rating, x.input_maximum_speed_limit, x.input_weight_restricted]])
+        predictValue = loadedModel.predict(testDf)[0]
+        interfaceResult = {"result": predictValue}
+        return interfaceResult
+    except HTTPException as http_err:
+        raise http_err
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
