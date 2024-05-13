@@ -70,7 +70,10 @@ class InDataset(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "hello server is running"}
+    try:
+        return {"message": "hello server is running"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/predict", status_code=200)
 async def predict_ml(x: InDataset): # 들어오는 데이터 타입을 InDataSet으로
